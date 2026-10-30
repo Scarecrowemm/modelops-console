@@ -18,8 +18,9 @@ from app import db, evaluation  # noqa: E402
 
 def main() -> int:
     db.init_db()
-    model_ids = sys.argv[1:] or None
-    results = evaluation.run(model_ids)
+    use_judge = "--judge" in sys.argv
+    model_ids = [a for a in sys.argv[1:] if not a.startswith("--")] or None
+    results = evaluation.run(model_ids, use_judge=use_judge)
     report = evaluation.report(results)
     path = ROOT / "docs" / "evaluation-report.md"
     path.parent.mkdir(parents=True, exist_ok=True)

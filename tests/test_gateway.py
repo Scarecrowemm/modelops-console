@@ -96,3 +96,38 @@ def test_tenant_rate_limit_returns_429(client, monkeypatch):
     assert r.status_code == 429
     assert r.json()["error"]["type"] == "rpm_exceeded"
     assert "Retry-After" in r.headers
+
+
+def test_streaming_returns_sse_and_logs(client):
+    with client.stream(
+        "POST", "/v1/chat/completions", headers=HEADERS, json={**BODY, "stream": True}
+    ) as response:
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/event-stream")
+        text = "".join(response.iter_text())
+    assert "chat.completion.chunk" in text
+    assert "data: [DONE]" in text
+    row = db.query_one("SELECT * FROM requests ORDER BY rowid DESC LIMIT 1")
+    assert row["status_code"] == 200
+    assert row["prompt_tokens"] > 0
+    assert row["completion_tokens"] > 0
+
+
+def test_streaming_fallback(client, monkeypatch):
+    def fake_stream(model, messages, max_tokens=256, latency_scale=0.1, force_failure=None):
+        if model["id"] == "deepseek-chat":
+            raise providers.ProviderError("429")
+        yield "fallback "
+        yield "stream"
+
+    monkeypatch.setattr(providers, "stream_call", fake_stream)
+    with client.stream(
+        "POST", "/v1/chat/completions", headers=HEADERS, json={**BODY, "stream": True}
+    ) as response:
+        assert response.status_code == 200
+        assert response.headers["X-Model"] == "qwen-plus"
+        assert response.headers["X-Route-Reason"] == "fallback"
+        assert response.headers["X-Fallback-From"] == "deepseek-chat"
+        text = "".join(response.iter_text())
+    assert "fallback " in text
+    assert "data: [DONE]" in text

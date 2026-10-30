@@ -6,7 +6,7 @@ import uuid
 from typing import Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict
 
@@ -51,6 +51,7 @@ class TransitionRequest(BaseModel):
 
 class EvalRequest(BaseModel):
     models: list[str] | None = None
+    judge: bool = False
 
 
 class MigrationPlanRequest(BaseModel):
@@ -82,27 +83,43 @@ def health() -> dict:
     return {"status": "ok", "version": app.version, "db": str(config.DB_PATH)}
 
 
+def _gateway_error_response(exc: gateway.GatewayError, request_id: str) -> JSONResponse:
+    headers = {"X-Request-Id": request_id}
+    if exc.retry_after:
+        headers["Retry-After"] = str(exc.retry_after)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": {
+                "type": exc.error_type,
+                "message": exc.message,
+                "request_id": request_id,
+            }
+        },
+        headers=headers,
+    )
+
+
 @app.post("/v1/chat/completions")
 def chat_completions(req: ChatRequest, authorization: str | None = Header(default=None)):
     request_id = "chatcmpl-" + uuid.uuid4().hex[:24]
     try:
+        if req.stream:
+            ctx, iterator, first = gateway.start_stream(
+                req.model_dump(), authorization, request_id=request_id
+            )
+            headers = gateway.stream_headers(ctx)
+            headers["Cache-Control"] = "no-cache"
+            headers["X-Accel-Buffering"] = "no"
+            return StreamingResponse(
+                gateway.stream_events(ctx, iterator, first),
+                media_type="text/event-stream",
+                headers=headers,
+            )
         body, headers = gateway.handle_chat(req.model_dump(), authorization, request_id=request_id)
         return JSONResponse(content=body, headers=headers)
     except gateway.GatewayError as exc:
-        headers = {"X-Request-Id": request_id}
-        if exc.retry_after:
-            headers["Retry-After"] = str(exc.retry_after)
-        return JSONResponse(
-            status_code=exc.status_code,
-            content={
-                "error": {
-                    "type": exc.error_type,
-                    "message": exc.message,
-                    "request_id": request_id,
-                }
-            },
-            headers=headers,
-        )
+        return _gateway_error_response(exc, request_id)
 
 
 @app.get("/v1/models")
@@ -145,7 +162,7 @@ def api_transition(model_id: str, req: TransitionRequest) -> dict:
 
 @app.post("/api/evaluations/run", dependencies=[Depends(require_admin)])
 def api_run_evaluation(req: EvalRequest) -> dict:
-    results = evaluation.run(req.models)
+    results = evaluation.run(req.models, use_judge=req.judge)
     report = evaluation.report(results)
     path = config.DOCS_DIR / "evaluation-report.md"
     path.parent.mkdir(parents=True, exist_ok=True)

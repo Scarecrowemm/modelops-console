@@ -16,7 +16,7 @@
 - 延迟和错误分布是“像”，不是“真”。
 - 模型质量分是模拟值，不能拿来证明“哪个模型更好”。
 
-**如果继续做**：保留 mock 作为故障注入，另加一个真实 provider adapter；用真实模型跑 20 条评测，而不是 1,000 条回放。见 `docs/real-provider.md`。
+**现在**：`prov_real` + `real-chat` 已经接好，配置 `MODELOPS_REAL_*` 后跑 `scripts/enable_real_model.py` 就能启用；mock 仍保留，用于故障注入和测试。见 `docs/real-provider.md`。
 
 ## 2. 为什么用 SQLite，而不是 Postgres/ClickHouse
 
@@ -33,19 +33,21 @@
 
 **如果继续做**：`requests` 表换 ClickHouse，`models/tenants` 换 Postgres；SQLite 只保留本地 demo。
 
-## 3. 为什么限流是进程内固定窗口
+## 3. 为什么默认限流是进程内固定窗口，Redis 是可选项
 
 **原因**：
 
 - 固定窗口最容易解释：一分钟内计数，超了返回 429。
-- 单进程 demo 不需要 Redis。
+- 单进程 demo 不需要 Redis；clone 下来就能跑。
+
+**现在**：设置 `MODELOPS_REDIS_URL` 会切到 Redis 版（`app/ratelimit_redis.py`），Redis 不可用时自动回退到进程内。这样既保留了“零依赖起步”，又演示了多副本的接法。
 
 **代价**：
 
-- 多副本时每个进程各算各的，会超卖。
-- 固定窗口在边界会抖动（最后一秒和第一秒）。
+- Redis 版是 `INCR + EXPIRE`，不是 Lua 原子脚本；高并发下会有边界误差。
+- 多副本部署、连接池、故障转移都没做。
 
-**如果继续做**：Redis + 滑动窗口或令牌桶，按租户维度共享。
+**如果继续做**：Lua 脚本保证原子性，加连接池和熔断，再做一次多副本压测。
 
 ## 4. 为什么看板是单页 HTML + ECharts
 
@@ -85,13 +87,22 @@
 - 租户量少时，比例会偏；
 - 不是按请求随机，不能做“同一租户 A/B”。
 
-## 7. 为什么没有做流式
+## 7. 流式是怎么做的
 
-**原因**：3 周 MVP 里，流式会牵动网关、计量、错误处理、前端四条线；我优先保证“非流式链路 + 运营闭环”是完整的。
+**做法**：
 
-**代价**：这是 AI 网关的基本能力，面试官一定会问。
+- 把“鉴权 + 限流 + 路由”抽成 `_prepare()`，普通请求和流式请求共用，避免两套逻辑漂移。
+- `start_stream()` 先取第一个 chunk；如果上游在第一个 chunk 前就 429/超时，可以在这里 fallback。一旦开始返回 SSE，就不再换模型。
+- `stream_events()` 按 OpenAI 的 `chat.completion.chunk` 格式发 `data: {...}`，最后发 usage 和 `[DONE]`。
+- 计量放在流结束后：prompt token 按输入估算，completion token 按累计文本估算，再按价目表算成本。
 
-**如果继续做**：见 Roadmap 第一条。实现时会先做 SSE 的 `data: {...}` 帧，最后发 `[DONE]`，usage 放在最后一个 chunk。
+**代价**：
+
+- 如果客户端中途断开，当前实现不会精确计费（流结束才写库）。
+- mock 流是 `time.sleep` 模拟的；真实上游的 SSE 解析在 `app/real_provider.py` 里，但没有做真实网络下的断线重连。
+- 流式请求的失败日志在 `stream_events` 里，和非流式的 `_fail` 是两条路径。
+
+**如果继续做**：处理客户端断开（`request.is_disconnected`）、按已发送 chunk 计费、加心跳和超时。
 
 ## 8. 为什么管理接口只用一个固定 token
 

@@ -6,6 +6,7 @@ distributed gateway. The README documents how to replace it with Redis.
 
 from __future__ import annotations
 
+import os
 import threading
 import time
 from typing import NamedTuple
@@ -59,4 +60,13 @@ class RateLimiter:
             return dict(self._state.get(tenant_id, {}))
 
 
-limiter = RateLimiter()
+def get_limiter():
+    url = os.getenv("MODELOPS_REDIS_URL", "").strip()
+    if url:
+        from .ratelimit_redis import RedisRateLimiter
+
+        return RedisRateLimiter(url)
+    return RateLimiter()
+
+
+limiter = get_limiter()

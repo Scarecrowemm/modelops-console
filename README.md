@@ -9,6 +9,10 @@
 
 ![dashboard](docs/screenshots/dashboard.png)
 
+![demo](docs/screenshots/demo.gif)
+
+> GIF 演示：今日概览 → 模型健康（v3 灰度 10%）→ 生命周期与迁移。
+
 ## 先说清楚
 
 - **这是个人项目，不是生产系统。** 它跑在我自己的笔记本上，用来练习 AI 模型运营的日常工作。
@@ -34,24 +38,24 @@
 
 | 模块 | 具体能力 |
 |---|---|
-| 网关 | OpenAI 兼容 `/v1/chat/completions`；按 Key 识别租户；RPM/TPM 限流；直连 / canary 比例分流 / 迁移路由 / 失败 fallback；token 计量；按**版本化价目表**算成本 |
+| 网关 | OpenAI 兼容 `/v1/chat/completions`；按 Key 识别租户；RPM/TPM 限流；直连 / canary 比例分流 / 迁移路由 / 失败 fallback；token 计量；按**版本化价目表**算成本；支持 **SSE 流式** |
+| 真实上游（可选） | 配置 `MODELOPS_REAL_*` 后启用 `real-chat`，走任意 OpenAI 兼容接口（Ollama/硅基流动/…）；默认关闭 |
+| 限流（可选） | 默认进程内固定窗口；设置 `MODELOPS_REDIS_URL` 后切 Redis，Redis 不可用时自动回退 |
 | 生命周期 | `tracking → evaluating → approved → canary → active → deprecating → offline`，每个流转有门槛，不满足返回 409 和逐项检查 |
-| 评估 | 20 条 prompt（客服/摘要/代码/翻译/长文），质量、通过率、P95、每千次成本、综合得分；低于质量线不推荐 |
+| 评估 | 20 条 prompt（客服/摘要/代码/翻译/长文），质量、通过率、P95、每千次成本、综合得分；低于质量线不推荐；可选 **LLM-as-judge** |
 | 迁移 | 40 个租户按 5%/20%/50%/100% 分批；网关按迁移表路由；支持批次完成/回滚 |
 | 事件 | 5 类模板（429、超时、成本、质量、密钥）+ Runbook + 复盘样例 |
 | 看板 | 6 个 KPI、7 日成本趋势、成本构成、模型健康、Top 租户、生命周期、迁移进度、待生效变更、未闭环事件 |
-| 告警 | 成功率、429、P95、成本环比、免费额度；可落库，可配 Webhook |
+| 告警 | 成功率、429、P95、成本环比、免费额度；可落库，支持飞书/企业微信/邮件/Webhook |
 | 报告 | 日报/周报自动生成 |
 | 自动化 | 一键 bootstrap、每日任务脚本、GitHub Actions 每日跑一次并上传报告 |
-| 测试 | 27 个测试：定价、限流、生命周期、canary、网关、告警、成本对账 |
+| 测试 | 32 个测试：定价、限流、生命周期、canary、网关（含流式）、告警、judge、Redis 回退、成本对账 |
 
 ## 它没做什么
 
-- 真实模型调用：默认 mock；想接真实模型看 [`docs/real-provider.md`](docs/real-provider.md)
-- 流式响应（SSE）
 - 向量/Embeddings 接口
 - JWT/OAuth/RBAC、Key 哈希存储
-- 分布式限流、多副本
+- 多副本部署（Redis 限流是一个可选示例，不是生产集群）
 - 真实支付/账单、供应商账单对账
 - 多区域、数据保留/归档
 - 自动扩缩容、K8s
@@ -156,10 +160,10 @@ modelops-console/
 
 ```bash
 python -m pytest -q
-# 27 passed
+# 32 passed
 ```
 
-覆盖：版本化定价、RPM/TPM、生命周期门槛、canary 升降级、网关鉴权/迁移/fallback/429、告警落库去重、回放成本对账。
+覆盖：版本化定价、RPM/TPM、生命周期门槛、canary 升降级、网关鉴权/迁移/fallback/429、**SSE 流式**、告警落库去重、**LLM-as-judge**、**Redis 回退**、回放成本对账。
 
 ## 设计取舍
 
@@ -178,12 +182,14 @@ python -m pytest -q
 
 ## Roadmap
 
-- [ ] 流式响应（SSE）
-- [ ] 真实供应商 adapter（OpenAI / DeepSeek / 通义 / Ollama）
-- [ ] Redis 滑动窗口限流
-- [ ] LLM-as-judge 质量评估
-- [ ] 告警邮件/飞书/企业微信通知
+- [x] 流式响应（SSE）
+- [x] 真实供应商 adapter（OpenAI 兼容 / Ollama）
+- [x] Redis 限流（可选）
+- [x] LLM-as-judge（可选）
+- [x] 告警飞书/企业微信/邮件
+- [ ] 供应商账单对账
 - [ ] 多区域与供应商 SLA 记分卡
+- [ ] 压测与容量规划
 
 ## License
 

@@ -39,12 +39,21 @@
 - 一键 bootstrap、每日任务、GitHub Actions；
 - 把 README 改成学生个人项目的语气，补了“设计取舍”和“学习笔记”。
 
-**当前状态**：MVP，27 个测试通过，可以本地跑，也可以每天在 GitHub Actions 里跑一次。
+## 2026-10-30 · 第二版
+
+**目标**：把“还没做的”补掉。
+
+- 流式 SSE：抽了 `_prepare()`，普通和流式共用鉴权/限流/路由；`start_stream()` 在第一个 chunk 前可 fallback；`stream_events()` 发 `chat.completion.chunk`，最后发 usage 和 `[DONE]`。
+- 真实上游：`prov_real` + `real-chat`，配置 `MODELOPS_REAL_*` 后用 `scripts/enable_real_model.py` 启用；支持 OpenAI 兼容接口和 Ollama。
+- Redis 限流：设置 `MODELOPS_REDIS_URL` 切换；连不上自动回退到进程内。
+- LLM-as-judge：配置 `MODELOPS_JUDGE_*` 后，评估可用 `--judge`；失败回退模拟分。
+- 通知：飞书/企业微信/邮件/通用 Webhook。
+- 测试从 27 增加到 32。
+
+**当前状态**：MVP+，32 个测试通过，可以本地跑，也可以每天在 GitHub Actions 里跑一次。
 
 **下一步**：
 
-- 流式响应；
-- 真实 provider adapter；
-- Redis 限流；
-- LLM-as-judge；
-- 告警通知（飞书/企业微信）。
+- 供应商账单对账；
+- 多区域与 SLA 记分卡；
+- 压测与容量规划。

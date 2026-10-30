@@ -8,7 +8,7 @@ import statistics
 from datetime import datetime
 from pathlib import Path
 
-from . import config, db, pricing, providers
+from . import config, db, judge, pricing, providers
 
 DATASET_PATH = config.DATA_DIR / "eval_prompts.json"
 DATASET_NAME = "eval-v1-20prompts"
@@ -27,8 +27,9 @@ def _p95(values: list[float]) -> float:
     return float(values[idx])
 
 
-def run(model_ids: list[str] | None = None, latency_scale: float = 0.05) -> list[dict]:
+def run(model_ids: list[str] | None = None, latency_scale: float = 0.05, use_judge: bool = False) -> list[dict]:
     prompts = load_prompts()
+    use_judge = use_judge and judge.available()
     if model_ids:
         models = [db.query_one("SELECT * FROM models WHERE id = ?", (m,)) for m in model_ids]
         models = [m for m in models if m]
@@ -47,8 +48,12 @@ def run(model_ids: list[str] | None = None, latency_scale: float = 0.05) -> list
                 latency_scale=latency_scale,
                 force_failure="",
             )
-            base = float(model["quality_score"] or 7.0)
-            score = max(1.0, min(10.0, base + random.uniform(-0.25, 0.25)))
+            judged = judge.score(p["prompt"], result.text) if use_judge else None
+            if judged is not None:
+                score = judged
+            else:
+                base = float(model["quality_score"] or 7.0)
+                score = max(1.0, min(10.0, base + random.uniform(-0.25, 0.25)))
             scores.append(score)
             latencies.append(result.latency_ms)
             costs.append(
@@ -76,6 +81,7 @@ def run(model_ids: list[str] | None = None, latency_scale: float = 0.05) -> list
                 "p95_latency_ms": p95,
                 "cost_per_1k": cost_per_1k,
                 "run_at": run_at,
+                "judge_used": use_judge,
             }
         )
     return results
@@ -109,7 +115,8 @@ def report(results: list[dict]) -> str:
         "",
         f"- 数据集：`{DATASET_NAME}`（{len(load_prompts())} 条 prompt，覆盖客服、摘要、代码、翻译、长文理解）",
         f"- 生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M')}",
-        "- 说明：本报告运行在 mock 上游上，质量分为模拟值；真实使用时替换为 rubric/LLM-as-judge。",
+        f"- 评分方式：{'LLM-as-judge' if results[0].get('judge_used') else '模拟质量分（未启用 judge）'}",
+        "- 说明：本报告运行在 mock 上游上；真实使用时替换为真实模型 + rubric/LLM-as-judge。",
         "",
         "## 结论",
         "",

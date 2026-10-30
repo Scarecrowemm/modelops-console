@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import os
+import smtplib
 from datetime import date, datetime, timedelta
+from email.message import EmailMessage
 
 import httpx
 
@@ -81,14 +83,49 @@ def current(day: str, kpis: dict) -> list[dict]:
     return dynamic + [a for a in persisted if a["rule"] not in rules]
 
 
-def notify(alert: dict) -> None:
-    url = os.getenv("MODELOPS_WEBHOOK_URL", "").strip()
-    if not url:
-        return
+def _post(url: str, payload: dict) -> None:
     try:
-        httpx.post(url, json={"text": f"[{alert['severity']}] {alert['rule']}: {alert['message']}"}, timeout=5)
+        httpx.post(url, json=payload, timeout=5)
     except Exception as exc:  # notification must never break the scan
         print(f"[alerts] webhook failed: {exc}")
+
+
+def _send_email(text: str) -> None:
+    host = os.getenv("MODELOPS_SMTP_HOST", "").strip()
+    to = os.getenv("MODELOPS_SMTP_TO", "").strip()
+    if not host or not to:
+        return
+    port = int(os.getenv("MODELOPS_SMTP_PORT", "587"))
+    user = os.getenv("MODELOPS_SMTP_USER", "")
+    password = os.getenv("MODELOPS_SMTP_PASSWORD", "")
+    message = EmailMessage()
+    message["Subject"] = "[ModelOps] alert"
+    message["From"] = os.getenv("MODELOPS_SMTP_FROM", user or "modelops@localhost")
+    message["To"] = to
+    message.set_content(text)
+    try:
+        with smtplib.SMTP(host, port, timeout=10) as smtp:
+            if port == 587:
+                smtp.starttls()
+            if user:
+                smtp.login(user, password)
+            smtp.send_message(message)
+    except Exception as exc:
+        print(f"[alerts] email failed: {exc}")
+
+
+def notify(alert: dict) -> None:
+    text = f"[{alert['severity']}] {alert['rule']}: {alert['message']}"
+    generic = os.getenv("MODELOPS_WEBHOOK_URL", "").strip()
+    if generic:
+        _post(generic, {"text": text, "alert": alert})
+    feishu = os.getenv("MODELOPS_FEISHU_WEBHOOK", "").strip()
+    if feishu:
+        _post(feishu, {"msg_type": "text", "content": {"text": text}})
+    wecom = os.getenv("MODELOPS_WECOM_WEBHOOK", "").strip()
+    if wecom:
+        _post(wecom, {"msgtype": "text", "text": {"content": text}})
+    _send_email(text)
 
 
 def scan(day: str | None = None) -> list[dict]:
