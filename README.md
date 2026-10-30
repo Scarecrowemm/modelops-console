@@ -1,118 +1,88 @@
 # ModelOps Console
 
-> 一个学生做的 AI 模型运营模拟平台：模型全生命周期、网关计量、成本看板、租户迁移、事件闭环。
+一个用于练习 AI 模型运营的模拟平台。包含 OpenAI 兼容网关、模型生命周期、成本看板、租户迁移和告警。
+
+上游模型是模拟的，租户和请求也是模拟数据。网关、限流、路由、计量、迁移和告警的逻辑是真实实现的。
 
 [![tests](https://github.com/Scarecrowemm/modelops-console/actions/workflows/ci.yml/badge.svg)](https://github.com/Scarecrowemm/modelops-console/actions/workflows/ci.yml)
+[![release](https://img.shields.io/github/v/release/Scarecrowemm/modelops-console)](https://github.com/Scarecrowemm/modelops-console/releases)
 ![python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
-![type](https://img.shields.io/badge/type-student%20project-lightgrey)
 
 ![dashboard](docs/screenshots/dashboard.png)
 
 ![demo](docs/screenshots/demo.gif)
 
-> GIF 演示：今日概览 → 模型健康（v3 灰度 10%）→ 生命周期与迁移。
+## 为什么做
 
-## 先说清楚
+在准备 AI 模型运营岗位的面试。JD 里常写“模型上下架、成本监控、用户迁移、跨团队闭环”，只看描述没什么感觉，就做了一个能跑的小平台，把流程走一遍。
 
-- **这是个人项目，不是生产系统。** 它跑在我自己的笔记本上，用来练习 AI 模型运营的日常工作。
-- **上游是 mock，数据是模拟的。** 3 个模拟供应商、8 个模型、200 个模拟租户、1,000 条回放请求；质量分也是模拟值。
-- **但流程是真的。** 网关鉴权、限流、路由、fallback、token 计量、版本化定价、生命周期门槛、迁移跟踪、事件闭环、日报生成，都是能跑、能测、能追问的代码。
-- 我做它的原因：准备 **AI 模型运营 / AI 网关运营** 岗位，想把 JD 里的四件事跑一遍，而不是只背“了解大模型”。
+## 功能
 
-## 10 分钟看什么
+- OpenAI 兼容 `/v1/chat/completions`，支持 SSE 流式
+- 按租户做 RPM/TPM 限流，可以切 Redis
+- 直连、canary 比例分流、迁移路由和失败 fallback
+- 按版本化价目表计算 token 成本
+- 模型生命周期：跟踪、评估、灰度、上线、下线
+- 40 个租户分批迁移，支持回滚
+- 调用、成本、延迟看板，日报和周报
+- 告警落库，支持飞书、企业微信、邮件、Webhook
 
-| 想看什么 | 打开 |
-|---|---|
-| 运营看板长什么样 | 跑起来后打开 `/dashboard`，或看上面的截图 |
-| 一份真实的运营日报 | [`docs/daily-report-sample.md`](docs/daily-report-sample.md) |
-| 模型评估怎么做 | [`docs/evaluation-report.md`](docs/evaluation-report.md) |
-| 生命周期门槛 | [`app/lifecycle.py`](app/lifecycle.py) + 看板“模型生命周期” |
-| 迁移计划 | [`docs/migration-plan.md`](docs/migration-plan.md) |
-| 事件闭环 | [`docs/runbook.md`](docs/runbook.md)、[`docs/postmortem-sample.md`](docs/postmortem-sample.md) |
-| 和 JD 怎么对应 | [`docs/jd-mapping.md`](docs/jd-mapping.md) |
-| 我为什么这么设计 | [`docs/design-decisions.md`](docs/design-decisions.md) |
-| 我踩过的坑 | [`docs/learning-notes.md`](docs/learning-notes.md) |
+## 运行
 
-## 它做了什么
-
-| 模块 | 具体能力 |
-|---|---|
-| 网关 | OpenAI 兼容 `/v1/chat/completions`；按 Key 识别租户；RPM/TPM 限流；直连 / canary 比例分流 / 迁移路由 / 失败 fallback；token 计量；按**版本化价目表**算成本；支持 **SSE 流式** |
-| 真实上游（可选） | 配置 `MODELOPS_REAL_*` 后启用 `real-chat`，走任意 OpenAI 兼容接口（Ollama/硅基流动/…）；默认关闭 |
-| 限流（可选） | 默认进程内固定窗口；设置 `MODELOPS_REDIS_URL` 后切 Redis，Redis 不可用时自动回退 |
-| 生命周期 | `tracking → evaluating → approved → canary → active → deprecating → offline`，每个流转有门槛，不满足返回 409 和逐项检查 |
-| 评估 | 20 条 prompt（客服/摘要/代码/翻译/长文），质量、通过率、P95、每千次成本、综合得分；低于质量线不推荐；可选 **LLM-as-judge** |
-| 迁移 | 40 个租户按 5%/20%/50%/100% 分批；网关按迁移表路由；支持批次完成/回滚 |
-| 事件 | 5 类模板（429、超时、成本、质量、密钥）+ Runbook + 复盘样例 |
-| 看板 | 6 个 KPI、7 日成本趋势、成本构成、模型健康、Top 租户、生命周期、迁移进度、待生效变更、未闭环事件 |
-| 告警 | 成功率、429、P95、成本环比、免费额度；可落库，支持飞书/企业微信/邮件/Webhook |
-| 报告 | 日报/周报自动生成 |
-| 自动化 | 一键 bootstrap、每日任务脚本、GitHub Actions 每日跑一次并上传报告 |
-| 测试 | 32 个测试：定价、限流、生命周期、canary、网关（含流式）、告警、judge、Redis 回退、成本对账 |
-
-## 它没做什么
-
-- 向量/Embeddings 接口
-- JWT/OAuth/RBAC、Key 哈希存储
-- 多副本部署（Redis 限流是一个可选示例，不是生产集群）
-- 真实支付/账单、供应商账单对账
-- 多区域、数据保留/归档
-- 自动扩缩容、K8s
-
-这些不是“忘了”，是刻意留给下一版。一个 3 周的 MVP 做不完，我也不想假装做完。
-
-## 怎么跑
+需要 Python 3.10+。
 
 ```bash
+git clone https://github.com/Scarecrowemm/modelops-console.git
+cd modelops-console
 python -m venv .venv
-.venv\Scripts\pip install -r requirements.txt      # Windows
-# source .venv/bin/activate && pip install -r requirements.txt  # macOS/Linux
-
-# 一键：建库 + 回放 1,000 条 + 评估 + 日报
-.venv\Scripts\python scripts\bootstrap.py
-
-# 启动
-.venv\Scripts\python -m uvicorn app.main:app --host 127.0.0.1 --port 8080
+.venv\Scripts\activate
+pip install -r requirements.txt
+python scripts/bootstrap.py
+python -m uvicorn app.main:app --port 8080
 ```
 
 打开 <http://127.0.0.1:8080/dashboard>。
 
-> 看板默认看“今天”。如果第二天打开发现是空的，跑一次 `scripts/bootstrap.py` 或 `scripts/daily_job.py --no-replay` 即可。
+`bootstrap.py` 会建库、回放 1,000 条请求、跑一次评估并生成日报。看板默认看今天；第二天打开如果没数据，跑 `python scripts/daily_job.py --no-replay` 就行。
 
-## 每天跑一次（可选）
+## 哪些是真的
 
-```bash
-# 追加 200 条模拟请求 + 扫描告警 + canary 检查 + 写日报
-python scripts/daily_job.py --count 200
-```
+| 部分 | 说明 |
+|---|---|
+| 上游模型 | 模拟。延迟和 429/500 可以配置 |
+| 租户和请求 | 模拟。200 个租户，1,000 条回放 |
+| 网关、限流、路由、计费 | 真实实现，有测试 |
+| 生命周期、迁移、告警 | 真实实现，有测试 |
+| 质量评估 | 默认模拟分，可以接 LLM-as-judge |
 
-GitHub Actions 里也配了一个每日任务（`.github/workflows/daily.yml`），每天 08:00（北京时间）跑一次，把日报作为 artifact 上传。它不会改仓库，只是证明“这个模拟平台可以按天运营”。
+## 可选配置
 
-## 架构
+| 变量 | 作用 |
+|---|---|
+| `MODELOPS_ADMIN_TOKEN` | 管理接口 token，默认 `admin-demo` |
+| `MODELOPS_REAL_BASE_URL` / `_API_KEY` / `_MODEL` | 接一个真实的 OpenAI 兼容模型 |
+| `MODELOPS_REDIS_URL` | 用 Redis 限流 |
+| `MODELOPS_JUDGE_BASE_URL` / `_API_KEY` / `_MODEL` | 用 LLM-as-judge 打分 |
+| `MODELOPS_FEISHU_WEBHOOK` / `MODELOPS_WECOM_WEBHOOK` / `MODELOPS_WEBHOOK_URL` | 告警通知 |
+| `MODELOPS_SMTP_HOST` / `_USER` / `_PASSWORD` / `_TO` | 邮件告警 |
 
-```
-Client
-  │  OpenAI-compatible /v1/chat/completions
-  ▼
-Gateway ── auth ── rate limit ── route ── fallback ── metering
-  │                                        │
-  ├── mock provider A (OpenAI)             ├── SQLite: requests / evaluations /
-  ├── mock provider B (Domestic)           │           migrations / incidents / lifecycle
-  └── mock provider C (Self-hosted)        │
-                                           ▼
-                              Dashboard (ECharts) + Reports (Markdown)
-```
+具体用法在 [`docs/real-provider.md`](docs/real-provider.md)、[`docs/redis.md`](docs/redis.md)、[`docs/llm-judge.md`](docs/llm-judge.md)、[`docs/notifications.md`](docs/notifications.md)。
 
-**生产化替换点**：
+## API
 
-| 组件 | Demo | 生产 |
+| 方法 | 路径 | 用途 |
 |---|---|---|
-| 上游 | mock | `httpx` 调真实供应商 |
-| 存储 | SQLite | PostgreSQL / ClickHouse |
-| 限流 | 进程内固定窗口 | Redis + 滑动窗口 |
-| 看板 | 单页 ECharts | Vue/React + 指标平台 |
-| 质量评估 | 模拟分 | rubric + LLM-as-judge |
+| POST | `/v1/chat/completions` | OpenAI 兼容调用 |
+| GET | `/v1/models` | 模型列表 |
+| GET | `/api/dashboard?day=YYYY-MM-DD` | 看板数据 |
+| POST | `/api/models/{id}/transition` | 生命周期流转（admin） |
+| POST | `/api/evaluations/run` | 跑评估（admin） |
+| POST | `/api/migrations/plan` | 生成迁移计划（admin） |
+| POST | `/api/incidents` | 开事件（admin） |
+| POST | `/api/reports/daily` | 生成日报（admin） |
+
+管理接口需要 `X-Admin-Token: admin-demo`（可以用 `MODELOPS_ADMIN_TOKEN` 覆盖）。
 
 ## 目录
 
@@ -130,31 +100,11 @@ modelops-console/
 │   ├── metrics.py         # 看板指标
 │   └── reports.py         # 日报/周报
 ├── dashboard/index.html   # 运营看板
-├── scripts/
-│   ├── bootstrap.py       # 一键初始化
-│   ├── daily_job.py       # 每日任务
-│   ├── replay.py          # 回放 + 对账
-│   ├── canary_check.py    # canary 自动升降级
-│   └── real_smoke.py      # 真实模型冒烟（可选）
-├── docs/                  # 模型卡、Runbook、迁移计划、RACI、复盘、JD 对应
-├── tests/                 # 27 个测试
+├── scripts/               # bootstrap、daily_job、replay、canary_check
+├── docs/                  # 模型卡、Runbook、迁移计划、设计取舍
+├── tests/                 # 32 个测试
 └── .github/workflows/     # CI + 每日任务
 ```
-
-## API
-
-| 方法 | 路径 | 用途 |
-|---|---|---|
-| POST | `/v1/chat/completions` | OpenAI 兼容调用 |
-| GET | `/v1/models` | 模型列表 |
-| GET | `/api/dashboard?day=YYYY-MM-DD` | 看板数据 |
-| POST | `/api/models/{id}/transition` | 生命周期流转（admin） |
-| POST | `/api/evaluations/run` | 跑评估（admin） |
-| POST | `/api/migrations/plan` | 生成迁移计划（admin） |
-| POST | `/api/incidents` | 开事件（admin） |
-| POST | `/api/reports/daily` | 生成日报（admin） |
-
-管理接口需要 `X-Admin-Token: admin-demo`（可用 `MODELOPS_ADMIN_TOKEN` 覆盖；公开 demo 请换掉）。
 
 ## 测试
 
@@ -163,33 +113,22 @@ python -m pytest -q
 # 32 passed
 ```
 
-覆盖：版本化定价、RPM/TPM、生命周期门槛、canary 升降级、网关鉴权/迁移/fallback/429、**SSE 流式**、告警落库去重、**LLM-as-judge**、**Redis 回退**、回放成本对账。
+覆盖定价、限流、生命周期、canary、网关（含流式）、告警去重、LLM-as-judge、Redis 回退和成本对账。
 
-## 设计取舍
+## 文档
 
-见 [`docs/design-decisions.md`](docs/design-decisions.md)。一句话总结：
+- 模型卡：[`docs/model-cards/`](docs/model-cards/)
+- 事件处理：[`docs/runbook.md`](docs/runbook.md)
+- 迁移计划：[`docs/migration-plan.md`](docs/migration-plan.md)
+- 设计取舍：[`docs/design-decisions.md`](docs/design-decisions.md)
+- 开发日志：[`docs/build-log.md`](docs/build-log.md)
+- 面试用 JD 对应：[`docs/jd-mapping.md`](docs/jd-mapping.md)
 
-> 我优先做“能讲清楚运营流程”的部分，而不是“看起来像大厂系统”的部分。mock 上游、SQLite、单页看板都是刻意的取舍。
+## 状态
 
-## 我学到了什么
+v0.2.0，早期版本，接口可能会改。
 
-见 [`docs/learning-notes.md`](docs/learning-notes.md)。几个印象最深的点：
-
-- 成本异常往往不是单价变了，而是**请求结构变了**（长上下文占比上升）。
-- 429 风暴里，先要区分“平台限流”和“上游限流”，否则会越限越乱。
-- 迁移最难的不是切流量，是**通知、回滚和账单核对**。
-- 生命周期门槛如果不写成代码，就会变成“口头通过”。
-
-## Roadmap
-
-- [x] 流式响应（SSE）
-- [x] 真实供应商 adapter（OpenAI 兼容 / Ollama）
-- [x] Redis 限流（可选）
-- [x] LLM-as-judge（可选）
-- [x] 告警飞书/企业微信/邮件
-- [ ] 供应商账单对账
-- [ ] 多区域与供应商 SLA 记分卡
-- [ ] 压测与容量规划
+还没做：供应商账单对账、多区域、压测和容量规划。
 
 ## License
 
