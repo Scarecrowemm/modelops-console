@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+data/modelops.db
+data/modelops.db-wal
+data/modelops.db-shm
+docs/daily-report-20*.md
+docs/weekly-report-20*.md

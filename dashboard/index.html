@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ModelOps Console · AI 模型运营控制台</title>
+<script src="/static/echarts.min.js"></script>
+<style>
+  :root {
+    --bg: #f6f8fb;
+    --surface: #ffffff;
+    --surface-2: #f1f4f8;
+    --text: #1b2330;
+    --text-2: #5b6676;
+    --text-3: #8a95a6;
+    --line: #e3e8ef;
+    --accent: #2f6feb;
+    --accent-soft: #e8f0fe;
+    --good: #147a4a;
+    --good-soft: #e6f5ed;
+    --warn: #9a6a00;
+    --warn-soft: #fdf3e0;
+    --bad: #c0392b;
+    --bad-soft: #fdeceb;
+    --radius: 12px;
+    --shadow: 0 1px 2px rgba(20, 26, 34, .05), 0 10px 30px -22px rgba(20, 26, 34, .28);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.6 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1320px; margin: 0 auto; padding: 22px 22px 48px; }
+  header {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    flex-wrap: wrap; margin-bottom: 18px;
+  }
+  .brand h1 { font-size: 22px; margin: 0; letter-spacing: -.02em; }
+  .brand p { margin: 2px 0 0; color: var(--text-3); font-size: 12.5px; }
+  .controls { display: flex; align-items: center; gap: 10px; }
+  input[type="date"] {
+    border: 1px solid var(--line); background: var(--surface); color: var(--text);
+    border-radius: 8px; padding: 8px 10px; font: inherit;
+  }
+  button {
+    border: 1px solid var(--line); background: var(--surface); color: var(--text);
+    border-radius: 8px; padding: 8px 14px; font: inherit; cursor: pointer;
+  }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:hover { filter: brightness(.98); }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 16px; }
+  .kpi {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 14px 16px; box-shadow: var(--shadow);
+  }
+  .kpi .label { color: var(--text-3); font-size: 12px; }
+  .kpi .value { font-size: 24px; font-weight: 700; letter-spacing: -.02em; margin-top: 2px; }
+  .kpi .sub { color: var(--text-3); font-size: 11.5px; margin-top: 2px; }
+  .kpi.good .value { color: var(--good); }
+  .kpi.warn .value { color: var(--warn); }
+  .kpi.bad .value { color: var(--bad); }
+
+  .banner {
+    background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--bad);
+    border-radius: var(--radius); padding: 12px 16px; margin-bottom: 16px;
+  }
+  .banner h3 { margin: 0 0 6px; font-size: 13px; color: var(--text-2); }
+  .alert { display: flex; gap: 10px; align-items: baseline; padding: 4px 0; font-size: 13px; }
+  .chip {
+    display: inline-block; font-size: 11px; font-weight: 700; border-radius: 999px;
+    padding: 1px 8px; white-space: nowrap;
+  }
+  .chip.P1 { background: var(--bad-soft); color: var(--bad); }
+  .chip.P2 { background: var(--warn-soft); color: var(--warn); }
+  .chip.P3 { background: var(--accent-soft); color: var(--accent); }
+
+  .grid2 { display: grid; grid-template-columns: 1.15fr .85fr; gap: 16px; margin-bottom: 16px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 16px 18px;
+  }
+  .card h2 { font-size: 15px; margin: 0 0 10px; }
+  .card .hint { color: var(--text-3); font-size: 12px; margin: -6px 0 10px; }
+  .chart { width: 100%; height: 250px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: var(--text-3); font-weight: 600; font-size: 12px; padding: 7px 6px; border-bottom: 1px solid var(--line); }
+  td { padding: 7px 6px; border-bottom: 1px solid var(--line); }
+  tr:last-child td { border-bottom: none; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .muted { color: var(--text-3); }
+  .pill { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); color: var(--text-2); }
+  .pill.active { background: var(--good-soft); color: var(--good); }
+  .pill.canary { background: var(--warn-soft); color: var(--warn); }
+  .pill.deprecating { background: var(--bad-soft); color: var(--bad); }
+
+  .board { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+  .col { background: var(--surface-2); border-radius: 10px; padding: 10px; min-height: 92px; }
+  .col h4 { margin: 0 0 8px; font-size: 12px; color: var(--text-2); display: flex; justify-content: space-between; }
+  .model-chip {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+    padding: 7px 8px; margin-bottom: 6px; font-size: 12px;
+  }
+  .model-chip b { display: block; font-size: 12.5px; }
+  .model-chip span { color: var(--text-3); font-size: 11px; }
+
+  .progress { height: 10px; background: var(--surface-2); border-radius: 999px; overflow: hidden; margin: 8px 0 12px; }
+  .progress > div { height: 100%; background: var(--accent); border-radius: 999px; }
+  .list { margin: 0; padding-left: 18px; }
+  .list li { margin: 4px 0; }
+  footer { color: var(--text-3); font-size: 12px; margin-top: 22px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+
+  @media (max-width: 1100px) {
+    .kpis { grid-template-columns: repeat(3, 1fr); }
+    .grid2 { grid-template-columns: 1fr; }
+    .board { grid-template-columns: repeat(3, 1fr); }
+  }
+  @media (max-width: 640px) {
+    .kpis { grid-template-columns: repeat(2, 1fr); }
+    .board { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <h1>ModelOps Console</h1>
+      <p>AI 模型运营控制台 · 模拟平台 AIGW · 3 个上游 / 8 个模型 / 200 个租户</p>
+    </div>
+    <div class="controls">
+      <input type="date" id="day">
+      <button class="primary" onclick="load()">刷新</button>
+      <a href="/docs" target="_blank">API 文档</a>
+    </div>
+  </header>
+
+  <section class="kpis" id="kpis"></section>
+  <section id="alerts"></section>
+
+  <section class="grid2">
+    <div class="card">
+      <h2>近 7 日成本趋势</h2>
+      <div class="hint">按天汇总，用于发现成本突增与回落</div>
+      <div class="chart" id="trendChart"></div>
+    </div>
+    <div class="card">
+      <h2>今日成本构成</h2>
+      <div class="hint">按模型拆分，单位美元</div>
+      <div class="chart" id="modelChart"></div>
+    </div>
+  </section>
+
+  <section class="grid2">
+    <div class="card">
+      <h2>模型健康</h2>
+      <div class="hint">成功率、P95 与成本；canary 模型按租户比例灰度，迁移租户优先</div>
+      <table>
+        <thead><tr><th>模型</th><th>状态</th><th class="num">请求</th><th class="num">成功率</th><th class="num">P95</th><th class="num">成本</th></tr></thead>
+        <tbody id="healthBody"></tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h2>Top 租户</h2>
+      <div class="hint">按今日成本排序，用于客户成功与预算跟进</div>
+      <table>
+        <thead><tr><th>租户</th><th>等级</th><th class="num">请求</th><th class="num">成本</th></tr></thead>
+        <tbody id="tenantBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card" style="margin-bottom:16px">
+    <h2>模型生命周期</h2>
+    <div class="hint">tracking → evaluating → approved → canary → active → deprecating → offline</div>
+    <div class="board" id="board"></div>
+  </section>
+
+  <section class="grid2">
+    <div class="card">
+      <h2>迁移进度</h2>
+      <div class="hint" id="migrationHint"></div>
+      <div class="progress"><div id="migrationBar" style="width:0%"></div></div>
+      <table>
+        <thead><tr><th>批次</th><th class="num">总数</th><th class="num">完成</th><th class="num">进行中</th><th class="num">待开始</th></tr></thead>
+        <tbody id="migrationBody"></tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h2>待生效的模型变更</h2>
+      <div class="hint">价格调整与下线计划，运营需要提前通知租户</div>
+      <table>
+        <thead><tr><th>模型</th><th>生效日期</th><th class="num">输入/1K</th><th class="num">输出/1K</th></tr></thead>
+        <tbody id="changesBody"></tbody>
+      </table>
+      <h2 style="margin-top:18px">未闭环事件</h2>
+      <ul class="list" id="incidentList"></ul>
+    </div>
+  </section>
+
+  <footer>
+    <div>模拟数据 · 仅用于运营流程演示，不代表真实业务</div>
+    <div id="generated"></div>
+  </footer>
+</div>
+
+<script>
+const STATUS_LABEL = {
+  tracking: "跟踪", evaluating: "评估", approved: "已批准", canary: "灰度",
+  active: "现役", deprecating: "下线中", offline: "已下线",
+  rejected: "已拒绝", rolled_back: "已回滚"
+};
+const BOARD_ORDER = ["tracking", "evaluating", "approved", "canary", "active", "deprecating"];
+
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[c]));
+}
+function money(n) { return "$" + Number(n || 0).toFixed(2); }
+function pct(n) { return (Number(n || 0) * 100).toFixed(1) + "%"; }
+function num(n) { return Number(n || 0).toLocaleString(); }
+
+let trendChart, modelChart;
+
+async function load() {
+  const day = document.getElementById("day").value;
+  const url = day ? `/api/dashboard?day=${encodeURIComponent(day)}` : "/api/dashboard";
+  const res = await fetch(url);
+  const data = await res.json();
+  document.getElementById("day").value = data.date;
+  render(data);
+}
+
+function render(data) {
+  const k = data.kpis;
+  const successClass = k.success_rate >= 0.98 ? "good" : (k.success_rate >= 0.95 ? "warn" : "bad");
+  const limitedClass = k.rate_limited_ratio <= 0.05 ? "good" : "bad";
+  const p95Class = k.p95_latency_ms <= 2000 ? "good" : "warn";
+  document.getElementById("kpis").innerHTML = [
+    kpi("请求数", num(k.requests), `${data.date} 当日`),
+    kpi("Token 总量", num(k.tokens), "输入 + 输出"),
+    kpi("成本", money(k.cost), "按价目表版本计算"),
+    kpi("成功率", pct(k.success_rate), "阈值 ≥ 98%", successClass),
+    kpi("429 占比", pct(k.rate_limited_ratio), "阈值 ≤ 5%", limitedClass),
+    kpi("P95 延迟", Math.round(k.p95_latency_ms) + " ms", "阈值 ≤ 2000ms", p95Class),
+  ].join("");
+
+  renderAlerts(data.alerts);
+  renderTrend(data.cost_trend);
+  renderModelChart(data.cost_by_model);
+  renderHealth(data.model_health);
+  renderTenants(data.top_tenants);
+  renderBoard(data.lifecycle);
+  renderMigration(data.migrations);
+  renderChanges(data.upcoming_changes);
+  renderIncidents(data.incidents);
+  document.getElementById("generated").textContent = "生成于 " + data.generated_at;
+}
+
+function kpi(label, value, sub, cls) {
+  return `<div class="kpi ${cls || ""}"><div class="label">${esc(label)}</div>
+    <div class="value">${esc(value)}</div><div class="sub">${esc(sub)}</div></div>`;
+}
+
+function renderAlerts(alerts) {
+  const el = document.getElementById("alerts");
+  if (!alerts || !alerts.length) { el.innerHTML = ""; return; }
+  el.innerHTML = `<div class="banner"><h3>活跃告警（${alerts.length}）</h3>` +
+    alerts.map(a => `<div class="alert"><span class="chip ${esc(a.severity)}">${esc(a.severity)}</span>
+      <span><b>${esc(a.rule)}</b> · ${esc(a.message)}</span></div>`).join("") + "</div>";
+}
+
+function renderTrend(rows) {
+  if (!trendChart) trendChart = echarts.init(document.getElementById("trendChart"));
+  trendChart.setOption({
+    grid: { left: 46, right: 16, top: 16, bottom: 28 },
+    tooltip: { trigger: "axis", valueFormatter: v => "$" + Number(v).toFixed(2) },
+    xAxis: { type: "category", data: rows.map(r => r.day.slice(5)), axisLine: { lineStyle: { color: "#e3e8ef" } }, axisLabel: { color: "#8a95a6" } },
+    yAxis: { type: "value", splitLine: { lineStyle: { color: "#eef2f7" } }, axisLabel: { color: "#8a95a6", formatter: v => "$" + v } },
+    series: [{ type: "line", smooth: true, symbolSize: 6, data: rows.map(r => r.cost),
+      lineStyle: { color: "#2f6feb", width: 2 }, itemStyle: { color: "#2f6feb" },
+      areaStyle: { color: "rgba(47,111,235,.10)" } }]
+  });
+}
+
+function renderModelChart(rows) {
+  if (!modelChart) modelChart = echarts.init(document.getElementById("modelChart"));
+  const data = rows.slice(0, 7).reverse();
+  const counts = {};
+  rows.forEach(r => counts[r.display_name] = (counts[r.display_name] || 0) + 1);
+  const label = r => counts[r.display_name] > 1 ? `${r.display_name} ${r.version || r.model_id}` : r.display_name;
+  modelChart.setOption({
+    grid: { left: 130, right: 24, top: 10, bottom: 20 },
+    tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter: v => "$" + Number(v).toFixed(2) },
+    xAxis: { type: "value", splitLine: { lineStyle: { color: "#eef2f7" } }, axisLabel: { color: "#8a95a6", formatter: v => "$" + v } },
+    yAxis: { type: "category", data: data.map(label), axisLabel: { color: "#5b6676" }, axisLine: { show: false }, axisTick: { show: false } },
+    series: [{ type: "bar", data: data.map(r => r.cost), barWidth: 12,
+      itemStyle: { color: "#2f6feb", borderRadius: [0, 4, 4, 0] } }]
+  });
+}
+
+function renderHealth(rows) {
+  document.getElementById("healthBody").innerHTML = rows.map(r => `
+    <tr><td><b>${esc(r.display_name)}</b><div class="muted">${esc(r.model_id)}</div></td>
+    <td><span class="pill ${esc(r.status)}">${esc(r.status === "canary" ? `灰度 ${Math.round((r.canary_percent || 0) * 100)}%` : (STATUS_LABEL[r.status] || r.status))}</span></td>
+    <td class="num">${num(r.requests)}</td>
+    <td class="num">${r.success_rate == null ? "—" : pct(r.success_rate)}</td>
+    <td class="num">${r.p95_latency_ms ? Math.round(r.p95_latency_ms) + "ms" : "—"}</td>
+    <td class="num">${money(r.cost)}</td></tr>`).join("");
+}
+
+function renderTenants(rows) {
+  document.getElementById("tenantBody").innerHTML = rows.map(r => `
+    <tr><td><b>${esc(r.name)}</b><div class="muted">${esc(r.tenant_id)}</div></td>
+    <td><span class="pill">${esc(r.tier)}</span></td>
+    <td class="num">${num(r.requests)}</td>
+    <td class="num">${money(r.cost)}</td></tr>`).join("");
+}
+
+function renderBoard(rows) {
+  const byStatus = Object.fromEntries((rows || []).map(r => [r.status, r.models]));
+  document.getElementById("board").innerHTML = BOARD_ORDER.map(s => {
+    const models = byStatus[s] || [];
+    return `<div class="col"><h4>${esc(STATUS_LABEL[s] || s)}<span>${models.length}</span></h4>` +
+      (models.length ? models.map(m => `<div class="model-chip"><b>${esc(m.display_name)}</b>
+        <span>${esc(m.id)} · 质量 ${m.quality_score ?? "—"}${m.status === "canary" ? ` · 灰度 ${Math.round((m.canary_percent || 0) * 100)}%` : ""}</span></div>`).join("")
+        : `<div class="muted" style="font-size:12px">—</div>`) + "</div>";
+  }).join("");
+}
+
+function renderMigration(m) {
+  document.getElementById("migrationHint").textContent =
+    `${m.completed}/${m.total} 个租户已完成，完成率 ${(m.completion_rate * 100).toFixed(0)}%`;
+  document.getElementById("migrationBar").style.width = (m.completion_rate * 100).toFixed(1) + "%";
+  document.getElementById("migrationBody").innerHTML = m.by_batch.map(b => `
+    <tr><td>${esc(b.batch)}</td><td class="num">${b.total}</td><td class="num">${b.completed}</td>
+    <td class="num">${b.in_progress}</td><td class="num">${b.pending}</td></tr>`).join("");
+}
+
+function renderChanges(rows) {
+  document.getElementById("changesBody").innerHTML = (rows && rows.length) ? rows.map(c => `
+    <tr><td><b>${esc(c.display_name)}</b><div class="muted">${esc(c.model_id)}</div></td>
+    <td>${esc(c.effective_from)}</td>
+    <td class="num">$${Number(c.input_price_per_1k).toFixed(2)}</td>
+    <td class="num">$${Number(c.output_price_per_1k).toFixed(2)}</td></tr>`).join("")
+    : `<tr><td colspan="4" class="muted">暂无待生效变更</td></tr>`;
+}
+
+function renderIncidents(rows) {
+  const el = document.getElementById("incidentList");
+  el.innerHTML = (rows && rows.length) ? rows.map(i => `
+    <li><span class="chip ${esc(i.severity)}">${esc(i.severity)}</span>
+    <b>${esc(i.id)}</b> · ${esc(i.summary)} <span class="muted">（${esc(i.owner)}）</span></li>`).join("")
+    : `<li class="muted">无未闭环事件</li>`;
+}
+
+window.addEventListener("resize", () => {
+  if (trendChart) trendChart.resize();
+  if (modelChart) modelChart.resize();
+});
+load();
+</script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+name: daily-ops
+
+on:
+  schedule:
+    # 00:00 UTC = 08:00 Asia/Shanghai
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run daily operations job
+        run: python scripts/daily_job.py --count 200
+      - name: Upload reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-ops-report
+          path: |
+            docs/daily-report-*.md
+            docs/weekly-report-*.md
+            docs/evaluation-report.md
+          if-no-files-found: ignore

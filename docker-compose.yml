@@ -1,0 +1,10 @@
+services:
+  modelops:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      MODELOPS_ADMIN_TOKEN: admin-demo
+    volumes:
+      - ./data:/app/data
+      - ./docs:/app/docs

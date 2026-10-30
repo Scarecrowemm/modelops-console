@@ -1,0 +1,22 @@
+[
+  {"id": "e01", "task_type": "客服问答", "prompt": "客户说订单三天没发货，要求退款，请写一段安抚并说明处理流程的回复。"},
+  {"id": "e02", "task_type": "客服问答", "prompt": "用户投诉扣费两次，情绪激动，请给出核查步骤和回复话术。"},
+  {"id": "e03", "task_type": "客服问答", "prompt": "客户询问企业版和个人版的区别，请用三点说明。"},
+  {"id": "e04", "task_type": "客服问答", "prompt": "用户要求注销账号并删除数据，请说明流程和合规注意事项。"},
+  {"id": "e05", "task_type": "摘要", "prompt": "把下面这段 300 字的产品更新说明压缩成 3 条要点：新增模型路由、支持租户配额、成本看板上线。"},
+  {"id": "e06", "task_type": "摘要", "prompt": "用 100 字总结一次线上故障复盘：上游 429 导致 12% 请求失败，18 分钟后恢复。"},
+  {"id": "e07", "task_type": "摘要", "prompt": "把一份周报压缩成管理层可读的 5 条 bullet，重点突出成本与稳定性。"},
+  {"id": "e08", "task_type": "摘要", "prompt": "用一句话概括模型评估报告的结论：新模型质量 +0.4，成本 +14%，延迟 -15%。"},
+  {"id": "e09", "task_type": "代码", "prompt": "写一个 Python 函数，按 token 数计算一次请求的成本，输入是 prompt_tokens、completion_tokens、单价。"},
+  {"id": "e10", "task_type": "代码", "prompt": "写一个 SQL，按模型统计昨天的请求数、成本和错误率。"},
+  {"id": "e11", "task_type": "代码", "prompt": "用 FastAPI 写一个 /health 接口，返回服务状态和版本号。"},
+  {"id": "e12", "task_type": "代码", "prompt": "写一个函数，把 1000 个租户按 5%、20%、50%、100% 分成四批迁移。"},
+  {"id": "e13", "task_type": "翻译", "prompt": "把 'The model is in canary and not enabled for this tenant' 翻译成中文，并解释 canary 的含义。"},
+  {"id": "e14", "task_type": "翻译", "prompt": "把一段英文 SLA 条款翻译成中文：99.5% monthly uptime, excluding scheduled maintenance。"},
+  {"id": "e15", "task_type": "翻译", "prompt": "把 'rate limit exceeded, retry after 60 seconds' 翻译成面向客户的中文提示。"},
+  {"id": "e16", "task_type": "翻译", "prompt": "解释 token、context window、rate limit 三个术语，并给出中文对照。"},
+  {"id": "e17", "task_type": "长文理解", "prompt": "阅读以下运营规则并指出风险点：租户预算用尽后仍可调用，但会在次日被限流。"},
+  {"id": "e18", "task_type": "长文理解", "prompt": "根据模型卡信息判断：上下文 64k、价格 0.14/0.28、P95 820ms，适合什么场景？"},
+  {"id": "e19", "task_type": "长文理解", "prompt": "比较两个模型的成本结构：A 输入 0.15 输出 0.60，B 输入 0.14 输出 0.28，什么情况下 A 更贵？"},
+  {"id": "e20", "task_type": "长文理解", "prompt": "给出一份模型下线检查清单，至少包含公告、流量、账单、密钥四类。"}
+]
